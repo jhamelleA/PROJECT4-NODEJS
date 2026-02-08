@@ -1,0 +1,73 @@
+/* index.css */
+
+:root {
+  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  /* Remove global background-color so our gradient shows perfectly */
+}
+
+/* Reset body so it doesn't fight with our AuthForm centering */
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  width: 100%;
+}
+
+/* Error message animation we talked about */
+@keyframes fadeIn {
+  from { 
+      opacity: 0; 
+      transform: translateY(-50%) translateX(-10px); 
+  }
+  to { 
+      opacity: 1; 
+      transform: translateY(-50%) translateX(0); 
+  }
+}
+
+/* Background animation for that fancy mesh gradient */
+@keyframes gradientBG {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+.error-text {
+  color: #ff4d4d;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+button[type="submit"]:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(108, 92, 231, 0.4);
+    filter: brightness(1.1);
+}
+
+.table-dark {
+    border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+    transition: transform 0.3s ease;
+}
+
+/* This makes the row light up and shift slightly right when hovered */
+tr:hover {
+    background-color:blue;
+    transform: scale(1.01); /* Very slight zoom for a premium feel */
+    box-shadow: inset 4px 0 0 #6c5ce7; /* A vertical purple line on the left */
+}
+
+/* Ensures the table transition is smooth */
+.table-responsive {
+    overflow: visible !important; /* Helps with the slight scale effect */
+}
