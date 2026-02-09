@@ -4,10 +4,11 @@ import { useNavigate } from 'react-router-dom';
 
 const Dashboard = () => {
     const [searchTerm, setSearchTerm] = useState('');
-    const [explorationData, setExplorationData] = useState({ galaxies: [], planets: [], stars: [] });
+    // Updated state to hold Categories and Questions per project requirements
+    const [forumData, setForumData] = useState({ categories: [], questions: [] });
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(true);
-    const [selectedRow, setSelectedRow] = useState(null);
+    const [selectedCategory, setSelectedCategory] = useState(null);
     
     const canvasRef = useRef(null);
     const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -59,7 +60,7 @@ const Dashboard = () => {
     useEffect(() => {
         const token = localStorage.getItem('token');
         if (!token) navigate('/'); 
-        const fetchAllData = async () => {
+        const fetchForumData = async () => {
             try {
                 setIsLoading(true);
                 const response = await fetch(`${baseURL}/api/exploration-data`, {
@@ -67,10 +68,9 @@ const Dashboard = () => {
                 });
                 const data = await response.json(); 
                 if (response.ok) {
-                    setExplorationData({
-                        galaxies: data.galaxies || [],
-                        planets: data.planets || [],
-                        stars: data.stars || []
+                    setForumData({
+                        categories: data.categories || [],
+                        questions: data.questions || []
                     });
                 } else {
                     setError(data.error || 'Failed to fetch mission data');
@@ -81,7 +81,7 @@ const Dashboard = () => {
                 setIsLoading(false);
             }
         };
-        fetchAllData();
+        fetchForumData();
     }, [baseURL, navigate]);
 
     const handleLogout = () => {
@@ -90,22 +90,17 @@ const Dashboard = () => {
         navigate('/');
     };
 
-    const filteredPlanets = useMemo(() => 
-        (explorationData?.planets || []).filter(p => p.name?.toLowerCase().includes(searchTerm.toLowerCase())),
-    [searchTerm, explorationData.planets]);
-
-    const filteredStars = useMemo(() => 
-        (explorationData?.stars || []).filter(s => s.name?.toLowerCase().includes(searchTerm.toLowerCase())),
-    [searchTerm, explorationData.stars]);
-
-    const filteredGalaxies = useMemo(() => 
-        (explorationData?.galaxies || []).filter(g => g.name?.toLowerCase().includes(searchTerm.toLowerCase())),
-    [searchTerm, explorationData.galaxies]);
-
-    const toggleHighlight = (type, id) => {
-        const key = `${type}-${id}`;
-        setSelectedRow(prev => prev === key ? null : key);
-    };
+    // Filter questions based on category selection AND search term
+    const filteredQuestions = useMemo(() => {
+        let results = forumData.questions;
+        if (selectedCategory) {
+            results = results.filter(q => q.category_id === selectedCategory);
+        }
+        if (searchTerm) {
+            results = results.filter(q => q.title.toLowerCase().includes(searchTerm.toLowerCase()));
+        }
+        return results;
+    }, [searchTerm, forumData.questions, selectedCategory]);
 
     if (isLoading) {
         return (
@@ -122,31 +117,19 @@ const Dashboard = () => {
 
             <style>
                 {`
-                    .glass-card { transition: all 0.3s ease; z-index: 1; }
+                    .glass-card { transition: all 0.3s ease; cursor: pointer; }
                     .glass-card:hover { transform: translateY(-5px); box-shadow: 0 0 20px rgba(0, 212, 255, 0.3) !important; }
-                    
-                    .blue-hover-row { transition: background 0.2s; cursor: pointer; }
+                    .active-card { border: 2px solid #00d4ff !important; background: rgba(0, 212, 255, 0.1) !important; }
+                    .blue-hover-row { transition: background 0.2s; }
                     .blue-hover-row:hover { background-color: rgba(0, 212, 255, 0.05) !important; }
-                    
-                    .row-highlighted { 
-                        background-color: rgba(0, 212, 255, 0.15) !important; 
-                        box-shadow: inset 4px 0 0 #00d4ff;
-                    }
-
-                    /* --- NEON TEXT GLOW CLASSES --- */
-                    .glow-planet { text-shadow: 0 0 8px rgba(0, 255, 136, 0.6); }
-                    .glow-star { text-shadow: 0 0 8px rgba(255, 204, 0, 0.6); }
-                    .glow-galaxy { text-shadow: 0 0 8px rgba(0, 212, 255, 0.6); }
-                    
-                    /* Secondary glow for descriptions to keep them readable */
-                    .glow-muted { text-shadow: 0 0 5px rgba(255, 255, 255, 0.1); }
+                    .glow-text { text-shadow: 0 0 8px rgba(0, 212, 255, 0.6); }
                 `}
             </style>
 
             <div style={{ position: 'relative', zIndex: 2 }}>
                 <Navbar variant="dark" style={styles.navbar} className="px-4 mb-4 sticky-top">
                     <Navbar.Brand className="fw-bold">
-                        <span style={styles.neonText}>🚀 SPACE_OS</span>
+                        <span style={styles.neonText}>🚀 SPACE_OS FORUM</span>
                     </Navbar.Brand>
                     <Navbar.Collapse className="justify-content-end">
                         <div className="text-end me-3">
@@ -159,11 +142,30 @@ const Dashboard = () => {
                 <Container>
                     {error && <Alert variant="danger" style={styles.alertStyle}>{error}</Alert>}
 
+                    {/* Category Selection Area */}
+                    <h5 className="text-info mb-3 font-monospace">SELECT SECTOR:</h5>
+                    <Row className="mb-4 g-4">
+                        {forumData.categories.map((cat) => (
+                            <Col md={4} key={cat.id}>
+                                <Card 
+                                    style={styles.statCard} 
+                                    className={`glass-card ${selectedCategory === cat.id ? 'active-card' : ''}`}
+                                    onClick={() => setSelectedCategory(cat.id)}
+                                >
+                                    <Card.Body className="text-center">
+                                        <h6 className="text-info font-monospace m-0">{cat.name.toUpperCase()}</h6>
+                                        <small className="text-muted">{cat.description}</small>
+                                    </Card.Body>
+                                </Card>
+                            </Col>
+                        ))}
+                    </Row>
+
                     <div className='mb-5'>
                         <InputGroup>
                             <Form.Control
                                 type="text"
-                                placeholder="Filter sector coordinates..."
+                                placeholder="Search transmissions..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 style={styles.searchBar}
@@ -171,101 +173,36 @@ const Dashboard = () => {
                         </InputGroup>
                     </div>
 
-                    <Row className="mb-5 g-4">
-                        {[
-                            { label: 'Planets', val: filteredPlanets.length, color: '#00ff88', icon: '🪐' },
-                            { label: 'Stars', val: filteredStars.length, color: '#ffcc00', icon: '✨' },
-                            { label: 'Galaxies', val: filteredGalaxies.length, color: '#00d4ff', icon: '🌀' }
-                        ].map((stat, idx) => (
-                            <Col md={4} key={idx}>
-                                <Card style={{...styles.statCard, borderColor: stat.color}} className="glass-card">
-                                    <Card.Body className="text-center">
-                                        <div style={{fontSize: '1.2rem'}} className="mb-1">{stat.icon}</div>
-                                        <h6 style={{color: stat.color, fontSize: '0.7rem', letterSpacing: '1px'}}>{stat.label.toUpperCase()}</h6>
-                                        <h2 className="text-white m-0 fw-bold">{stat.val}</h2>
-                                    </Card.Body>
-                                </Card>
-                            </Col>
-                        ))}
-                    </Row>
-
-                    {/* --- PLANETS TABLE --- */}
-                    <DataSection title="Planet Discoveries" color="#00ff88">
+                    {/* Questions Table */}
+                    <DataSection title={selectedCategory ? "Filtered Transmissions" : "All Sector Questions"} color="#00d4ff">
                         <Table responsive variant="dark" style={styles.modernTable}>
                             <thead>
                                 <tr style={styles.tableHeaderRow}>
-                                    <th className="ps-4">NAME</th>
-                                    <th className="text-center">MOONS</th>
-                                    <th className="text-end pe-4">CLASSIFICATION</th>
+                                    <th className="ps-4">SUBJECT</th>
+                                    <th>CONTENT</th>
+                                    <th className="text-end pe-4">TIMESTAMP</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {filteredPlanets.map(p => (
-                                    <tr 
-                                        key={p.id} 
-                                        onClick={() => toggleHighlight('planet', p.id)}
-                                        className={`blue-hover-row ${selectedRow === `planet-${p.id}` ? 'row-highlighted' : ''}`} 
-                                        style={styles.tableRow}
-                                    >
-                                        <td className="ps-4 fw-bold glow-planet" style={{color: '#00ff88'}}>{p.name}</td>
-                                        <td className="text-center glow-muted">{p.moons}</td>
-                                        <td className="text-end pe-4 text-muted small glow-muted">{p.planet_type?.toUpperCase()}</td>
+                                {filteredQuestions.length > 0 ? (
+                                    filteredQuestions.map(q => (
+                                        <tr key={q.id} className="blue-hover-row" style={styles.tableRow}>
+                                            <td className="ps-4 fw-bold glow-text" style={{color: '#00d4ff'}}>
+                                                {q.title}
+                                            </td>
+                                            <td className="text-muted small">{q.content}</td>
+                                            <td className="text-end pe-4 text-info font-monospace small">
+                                                {new Date(q.created_at).toLocaleDateString()}
+                                            </td>
+                                        </tr>
+                                    ))
+                                ) : (
+                                    <tr>
+                                        <td colSpan="3" className="text-center py-5 text-muted">
+                                            SELECT A CATEGORY TO VIEW ITS QUESTIONS
+                                        </td>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </Table>
-                    </DataSection>
-
-                    {/* --- STARS TABLE --- */}
-                    <DataSection title="Celestial Stars" color="#ffcc00">
-                        <Table responsive variant="dark" style={styles.modernTable}>
-                            <thead>
-                                <tr style={styles.tableHeaderRow}>
-                                    <th className="ps-4">NAME</th>
-                                    <th className="text-center">CONSTELLATION</th>
-                                    <th className="text-end pe-4">DISTANCE (LY)</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {filteredStars.map(s => (
-                                    <tr 
-                                        key={s.id} 
-                                        onClick={() => toggleHighlight('star', s.id)}
-                                        className={`blue-hover-row ${selectedRow === `star-${s.id}` ? 'row-highlighted' : ''}`} 
-                                        style={styles.tableRow}
-                                    >
-                                        <td className="ps-4 fw-bold glow-star" style={{color: '#ffcc00'}}>{s.name}</td>
-                                        <td className="text-center glow-muted">{s.constellation}</td>
-                                        <td className="text-end pe-4 text-muted small glow-muted">{s.distance_light_years} LY</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </Table>
-                    </DataSection>
-
-                    {/* --- GALAXIES TABLE --- */}
-                    <DataSection title="Observed Galaxies" color="#00d4ff">
-                        <Table responsive variant="dark" style={styles.modernTable}>
-                            <thead>
-                                <tr style={styles.tableHeaderRow}>
-                                    <th className="ps-4">GALAXY NAME</th>
-                                    <th className="text-center">SHAPE</th>
-                                    <th className="text-end pe-4">DESCRIPTION</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {filteredGalaxies.map(g => (
-                                    <tr 
-                                        key={g.id} 
-                                        onClick={() => toggleHighlight('galaxy', g.id)}
-                                        className={`blue-hover-row ${selectedRow === `galaxy-${g.id}` ? 'row-highlighted' : ''}`} 
-                                        style={styles.tableRow}
-                                    >
-                                        <td className="ps-4 fw-bold glow-galaxy" style={{color: '#00d4ff'}}>{g.name}</td>
-                                        <td className="text-center"><Badge bg="dark" style={{border: '1px solid #00d4ff', color: '#00d4ff', boxShadow: '0 0 5px #00d4ff'}}>{g.shape}</Badge></td>
-                                        <td className="text-end pe-4 text-muted small glow-muted">{g.description}</td>
-                                    </tr>
-                                ))}
+                                )}
                             </tbody>
                         </Table>
                     </DataSection>
@@ -277,7 +214,7 @@ const Dashboard = () => {
 
 const DataSection = ({ title, color, children }) => (
     <div className="mb-5">
-        <h5 className="mb-3 fw-bold glow-muted" style={{color, letterSpacing: '2px', borderLeft: `4px solid ${color}`, paddingLeft: '10px'}}>{title.toUpperCase()}</h5>
+        <h5 className="mb-3 fw-bold" style={{color, letterSpacing: '2px', borderLeft: `4px solid ${color}`, paddingLeft: '10px'}}>{title.toUpperCase()}</h5>
         {children}
     </div>
 );
@@ -287,7 +224,7 @@ const styles = {
     starfieldCanvas: { position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: 0, pointerEvents: 'none' },
     navbar: { background: 'rgba(5, 7, 10, 0.85)', backdropFilter: 'blur(10px)', borderBottom: '1px solid rgba(0, 212, 255, 0.2)' },
     neonText: { textShadow: '0 0 10px #00d4ff' },
-    statCard: { background: 'rgba(255, 255, 255, 0.03)', backdropFilter: 'blur(5px)', borderRadius: '12px' },
+    statCard: { background: 'rgba(255, 255, 255, 0.03)', backdropFilter: 'blur(5px)', borderRadius: '12px', border: '1px solid rgba(0, 212, 255, 0.1)' },
     modernTable: { background: 'rgba(255, 255, 255, 0.01)', borderRadius: '12px', overflow: 'hidden', fontSize: '0.9rem' },
     tableHeaderRow: { background: 'rgba(0, 212, 255, 0.05)', color: '#00d4ff', fontSize: '0.75rem', letterSpacing: '1px' },
     tableRow: { borderBottom: '1px solid rgba(255,255,255,0.03)' },
