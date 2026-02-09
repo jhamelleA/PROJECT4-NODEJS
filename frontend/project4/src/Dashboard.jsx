@@ -129,7 +129,6 @@ const Dashboard = () => {
         navigate('/');
     };
 
-    // Filter questions - UPDATED TO USE LOOSE EQUALITY (==)
     const filteredQuestions = useMemo(() => {
         let results = forumData.questions;
         if (selectedCategory) {
@@ -202,7 +201,7 @@ const Dashboard = () => {
 
                     {/* NEW TRANSMISSION FORM */}
                     <Card style={styles.statCard} className="mb-5 p-4 glass-card shadow-lg" onClick={(e) => e.stopPropagation()}>
-                        <h5 className="text-info font-monospace mb-3">OUTGOING TRANSMISSION</h5>
+                        <h5 className="text-info font-monospace mb-3">OUTGOING TRANSMISSION [AUTH: {user.username?.toUpperCase() || 'UNKNOWN'}]</h5>
                         <Form onSubmit={handlePostQuestion}>
                             <Row>
                                 <Col md={6}>
@@ -259,6 +258,7 @@ const Dashboard = () => {
                             <thead>
                                 <tr style={styles.tableHeaderRow}>
                                     <th className="ps-4">SUBJECT</th>
+                                    <th>PILOT</th>
                                     <th>CONTENT</th>
                                     <th className="text-end pe-4">TIMESTAMP</th>
                                 </tr>
@@ -270,6 +270,9 @@ const Dashboard = () => {
                                             <td className="ps-4 fw-bold glow-text" style={{color: '#00d4ff'}}>
                                                 {q.title}
                                             </td>
+                                            <td className="text-info font-monospace small">
+                                                {q.username?.toUpperCase() || 'COMM_LINK_OFFLINE'}
+                                            </td>
                                             <td style={{ color: '#b0b8c4', fontSize: '0.85rem' }}>  
                                                 {q.content}
                                             </td>
@@ -280,7 +283,7 @@ const Dashboard = () => {
                                     ))
                                 ) : (
                                     <tr>
-                                        <td colSpan="3" className="text-center py-5 text-muted">
+                                        <td colSpan="4" className="text-center py-5 text-muted">
                                             NO DATA FOUND IN THIS SECTOR
                                         </td>
                                     </tr>
