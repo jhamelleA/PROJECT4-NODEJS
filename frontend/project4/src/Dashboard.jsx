@@ -1,15 +1,18 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Container, Table, Button, Alert, Row, Col, Card, Navbar, Badge, Form, InputGroup, Spinner } from 'react-bootstrap';
+import { Container, Table, Button, Alert, Row, Col, Card, Navbar, Form, InputGroup, Spinner } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
 
 const Dashboard = () => {
     const [searchTerm, setSearchTerm] = useState('');
-    // Updated state to hold Categories and Questions per project requirements
     const [forumData, setForumData] = useState({ categories: [], questions: [] });
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(true);
     const [selectedCategory, setSelectedCategory] = useState(null);
     
+    // New state for the "Ask Question" form
+    const [newQuestion, setNewQuestion] = useState({ title: '', content: '', category_id: '' });
+    const [isPosting, setIsPosting] = useState(false);
+
     const canvasRef = useRef(null);
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     const navigate = useNavigate();
@@ -57,32 +60,68 @@ const Dashboard = () => {
         };
     }, [isLoading]);
 
-    useEffect(() => {
+    // Fetch Initial Data
+    const fetchForumData = async () => {
         const token = localStorage.getItem('token');
-        if (!token) navigate('/'); 
-        const fetchForumData = async () => {
-            try {
-                setIsLoading(true);
-                const response = await fetch(`${baseURL}/api/exploration-data`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
+        if (!token) return navigate('/'); 
+        try {
+            const response = await fetch(`${baseURL}/api/exploration-data`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await response.json(); 
+            if (response.ok) {
+                setForumData({
+                    categories: data.categories || [],
+                    questions: data.questions || []
                 });
-                const data = await response.json(); 
-                if (response.ok) {
-                    setForumData({
-                        categories: data.categories || [],
-                        questions: data.questions || []
-                    });
-                } else {
-                    setError(data.error || 'Failed to fetch mission data');
-                }
-            } catch (err) {
-                setError('Mission Control: Connection lost');
-            } finally {
-                setIsLoading(false);
+            } else {
+                setError(data.error || 'Failed to fetch mission data');
             }
-        };
+        } catch (err) {
+            setError('Mission Control: Connection lost');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    useEffect(() => {
         fetchForumData();
-    }, [baseURL, navigate]);
+    }, []);
+
+    // Handle posting a new question
+    const handlePostQuestion = async (e) => {
+        e.preventDefault();
+        const token = localStorage.getItem('token');
+        
+        if (!newQuestion.title || !newQuestion.content || !newQuestion.category_id) {
+            setError("All fields are required to establish link.");
+            return;
+        }
+
+        setIsPosting(true);
+        try {
+            const response = await fetch(`${baseURL}/api/questions`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}` 
+                },
+                body: JSON.stringify(newQuestion)
+            });
+            
+            if (response.ok) {
+                setNewQuestion({ title: '', content: '', category_id: '' });
+                await fetchForumData(); // Refresh list automatically
+            } else {
+                const data = await response.json();
+                setError(data.error || "Transmission failed.");
+            }
+        } catch (err) {
+            setError("Connection error: Could not reach relay station.");
+        } finally {
+            setIsPosting(false);
+        }
+    };
 
     const handleLogout = () => {
         localStorage.removeItem('token');
@@ -90,11 +129,11 @@ const Dashboard = () => {
         navigate('/');
     };
 
-    // Filter questions based on category selection AND search term
+    // Filter questions - UPDATED TO USE LOOSE EQUALITY (==)
     const filteredQuestions = useMemo(() => {
         let results = forumData.questions;
         if (selectedCategory) {
-            results = results.filter(q => q.category_id === selectedCategory);
+            results = results.filter(q => q.category_id == selectedCategory);
         }
         if (searchTerm) {
             results = results.filter(q => q.title.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -140,7 +179,7 @@ const Dashboard = () => {
                 </Navbar>
 
                 <Container>
-                    {error && <Alert variant="danger" style={styles.alertStyle}>{error}</Alert>}
+                    {error && <Alert variant="danger" onClose={() => setError('')} dismissible style={styles.alertStyle}>{error}</Alert>}
 
                     {/* Category Selection Area */}
                     <h5 className="text-info mb-3 font-monospace">SELECT SECTOR:</h5>
@@ -149,8 +188,8 @@ const Dashboard = () => {
                             <Col md={4} key={cat.id}>
                                 <Card 
                                     style={styles.statCard} 
-                                    className={`glass-card ${selectedCategory === cat.id ? 'active-card' : ''}`}
-                                    onClick={() => setSelectedCategory(cat.id)}
+                                    className={`glass-card ${selectedCategory == cat.id ? 'active-card' : ''}`}
+                                    onClick={() => setSelectedCategory(selectedCategory == cat.id ? null : cat.id)}
                                 >
                                     <Card.Body className="text-center">
                                         <h6 className="text-info font-monospace m-0">{cat.name.toUpperCase()}</h6>
@@ -160,6 +199,47 @@ const Dashboard = () => {
                             </Col>
                         ))}
                     </Row>
+
+                    {/* NEW TRANSMISSION FORM */}
+                    <Card style={styles.statCard} className="mb-5 p-4 glass-card shadow-lg" onClick={(e) => e.stopPropagation()}>
+                        <h5 className="text-info font-monospace mb-3">OUTGOING TRANSMISSION</h5>
+                        <Form onSubmit={handlePostQuestion}>
+                            <Row>
+                                <Col md={6}>
+                                    <Form.Control 
+                                        placeholder="Subject Title" 
+                                        style={styles.searchBar} 
+                                        className="mb-2"
+                                        value={newQuestion.title}
+                                        onChange={(e) => setNewQuestion({...newQuestion, title: e.target.value})}
+                                    />
+                                </Col>
+                                <Col md={6}>
+                                    <Form.Select 
+                                        style={styles.searchBar} 
+                                        className="mb-2"
+                                        value={newQuestion.category_id}
+                                        onChange={(e) => setNewQuestion({...newQuestion, category_id: e.target.value})}
+                                    >
+                                        <option value="">Target Sector</option>
+                                        {forumData.categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                    </Form.Select>
+                                </Col>
+                            </Row>
+                            <Form.Control 
+                                as="textarea" 
+                                rows={2}
+                                placeholder="Enter your data logs..." 
+                                style={styles.searchBar} 
+                                className="mb-3"
+                                value={newQuestion.content}
+                                onChange={(e) => setNewQuestion({...newQuestion, content: e.target.value})}
+                            />
+                            <Button variant="outline-info" type="submit" disabled={isPosting}>
+                                {isPosting ? 'UPLOADING...' : 'SEND TO ORBIT'}
+                            </Button>
+                        </Form>
+                    </Card>
 
                     <div className='mb-5'>
                         <InputGroup>
@@ -190,7 +270,9 @@ const Dashboard = () => {
                                             <td className="ps-4 fw-bold glow-text" style={{color: '#00d4ff'}}>
                                                 {q.title}
                                             </td>
-                                            <td className="text-muted small">{q.content}</td>
+                                            <td style={{ color: '#b0b8c4', fontSize: '0.85rem' }}>  
+                                                {q.content}
+                                            </td>
                                             <td className="text-end pe-4 text-info font-monospace small">
                                                 {new Date(q.created_at).toLocaleDateString()}
                                             </td>
@@ -199,7 +281,7 @@ const Dashboard = () => {
                                 ) : (
                                     <tr>
                                         <td colSpan="3" className="text-center py-5 text-muted">
-                                            SELECT A CATEGORY TO VIEW ITS QUESTIONS
+                                            NO DATA FOUND IN THIS SECTOR
                                         </td>
                                     </tr>
                                 )}
@@ -229,7 +311,7 @@ const styles = {
     tableHeaderRow: { background: 'rgba(0, 212, 255, 0.05)', color: '#00d4ff', fontSize: '0.75rem', letterSpacing: '1px' },
     tableRow: { borderBottom: '1px solid rgba(255,255,255,0.03)' },
     searchBar: { background: 'rgba(10, 13, 20, 0.8)', color: '#00d4ff', border: '1px solid #1a202c', borderRadius: '8px' },
-    alertStyle: { background: 'rgba(29, 47, 178, 0.1)', border: '1px solid #dc3545', color: '#ff8888' }
+    alertStyle: { background: 'rgba(220, 53, 69, 0.1)', border: '1px solid #dc3545', color: '#ff8888' }
 };
 
 export default Dashboard;

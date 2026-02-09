@@ -8,7 +8,6 @@ const app = express();
 const port = 8000;
 
 app.use(express.json());
-// Updated CORS to ensure headers like Authorization can pass through
 app.use(cors({
     origin: 'http://localhost:5173',
     credentials: true
@@ -18,13 +17,9 @@ app.use(cors({
 const verifyToken = (req, res, next) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
-
-    if (!token) {
-        return res.status(401).json({ error: "Access denied. No token provided." });
-    }
+    if (!token) return res.status(401).json({ error: "Access denied. No token provided." });
 
     try {
-        // Fallback to the hardcoded string ONLY if .env isn't working
         const secret = process.env.JWT_SECRET || 'super_secret_space_key';
         const verified = jwt.verify(token, secret);
         req.user = verified;
@@ -38,17 +33,47 @@ app.get('/', (req, res) => {
     res.send('🚀 Mission Control Server is Online!');
 });
 
-// --- PROTECTED DATA ROUTE ---
+// --- GET FORUM DATA (Updated to ensure Content is selected) ---
 app.get('/api/exploration-data', verifyToken, async (req, res) => {
     try {
-        const [planets] = await db.query('SELECT * FROM planets');
-        const [stars] = await db.query('SELECT * FROM stars');
-        const [galaxies] = await db.query('SELECT * FROM galaxies');
-
-        res.status(200).json({ planets, stars, galaxies });
+        const [categories] = await db.query('SELECT * FROM categories');
+        const [questions] = await db.query(`
+            SELECT 
+                q.id, 
+                q.title, 
+                q.content, 
+                q.created_at, 
+                q.category_id, 
+                c.name AS category_name 
+            FROM questions q 
+            JOIN categories c ON q.category_id = c.id 
+            ORDER BY q.created_at DESC
+        `);
+        res.status(200).json({ categories, questions });
     } catch (err) {
         console.error("Data Fetch Error:", err);
-        res.status(500).json({ error: "Failed to retrieve celestial data" });
+        res.status(500).json({ error: "Failed to retrieve forum data" });
+    }
+});
+
+// --- NEW: POST A QUESTION ---
+app.post('/api/questions', verifyToken, async (req, res) => {
+    const { title, content, category_id } = req.body;
+    const userId = req.user.id; 
+
+    if (!title || !content || !category_id) {
+        return res.status(400).json({ error: "Transmission incomplete. All fields required." });
+    }
+
+    try {
+        await db.query(
+            'INSERT INTO questions (title, content, category_id, user_id) VALUES (?, ?, ?, ?)',
+            [title, content, category_id, userId]
+        );
+        res.status(201).json({ message: "Transmission recorded in database." });
+    } catch (err) {
+        console.error("Post Error:", err);
+        res.status(500).json({ error: "Failed to save transmission" });
     }
 });
 
@@ -56,7 +81,6 @@ app.get('/api/exploration-data', verifyToken, async (req, res) => {
 app.post('/api/register', async (req, res) => {
     const { username, email, password } = req.body;
     try {
-        // Salt rounds = 10
         const hashedPassword = await bcrypt.hash(password, 10);
         await db.query(
             'INSERT INTO users (username, email, password) VALUES (?, ?, ?)', 
@@ -69,20 +93,19 @@ app.post('/api/register', async (req, res) => {
     }
 });
 
+// --- LOGIN (Updated to use USERNAME instead of EMAIL) ---
 // --- LOGIN ---
 app.post('/api/login', async (req, res) => {
-    const { email, password } = req.body;
+    const { username, password } = req.body;
     try {
-        const [rows] = await db.query('SELECT * FROM users WHERE email = ?', [email]);
+        const [rows] = await db.query('SELECT * FROM users WHERE username = ?', [username]);
         
         if (rows.length === 0) {
-            // User doesn't exist
-            return res.status(401).json({ error: 'Email not found' });
+            // Added 'field' key so frontend knows exactly where to show the red text
+            return res.status(401).json({ error: 'Username not found', field: 'username' });
         }
 
         const user = rows[0];
-        
-        // Compare the plain text password with the hashed password from DB
         const isMatch = await bcrypt.compare(password, user.password);
 
         if (isMatch) {
@@ -99,8 +122,8 @@ app.post('/api/login', async (req, res) => {
                 user: { id: user.id, username: user.username }
             });
         } else {
-            // Password didn't match
-            res.status(401).json({ error: 'Incorrect password' });
+            // Added 'field' key here too
+            res.status(401).json({ error: 'Incorrect password', field: 'password' });
         }
     } catch (err) {
         console.error("Login Error:", err);
